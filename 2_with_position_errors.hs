@@ -58,29 +58,6 @@ apply f a = errorP ("should be function: " ++ showval f)
 test :: Term -> String
 test t = showM (interp t [])
 
-
------------------------
--- 0) Standard Interpreter
--- When we provide the identity monad, we get
--- the standard metacircular interpeter for lambda
--- calculus
-type I a = a
-unitI a = a
-a `bindI` k = k a
-showI = showval
-
--- type M a = I a
--- unitM = unitI
--- bindM = bindI
--- showM = showI
-
--------------------------
--- 1) With Error Messages
--- This only requires the invalid cases of
--- lookup, add, and apply substituting
--- errorE instead of Wrong, and adding some new
--- data types. This simulates error handling that
--- we could get with exceptions or continuations.
 data E a = Success a | Error String
 
 unitE = Success
@@ -91,11 +68,6 @@ errorE = Error
 
 showE (Success a) = "Success: " ++ showval a
 showE (Error s) = "Error: " ++ s
-
--- type M a = E a
--- unitM = unitE
--- bindM = bindE
--- showM = showE
 
 -------------------------------------
 -- 2) Error messages with positions!
