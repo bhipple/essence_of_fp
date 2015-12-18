@@ -17,6 +17,7 @@ data Term = Var Name
           | Add Term Term
           | Lam Name Term
           | App Term Term
+          | Count
 
 data Value = Wrong
            | Num Int
@@ -39,6 +40,7 @@ interp (Lam x v) e = unitM (Fun (\a -> interp v ((x,a):e)))
 interp (App t u) e = interp t e `bindM` (\f ->
                      interp u e `bindM` (\a ->
                      apply f a))
+interp Count e = fetchS `bindS` (\i -> unitS (Num i))
 
 lookup :: Name -> Environment -> M Value
 lookup x [] = unitM Wrong
@@ -64,7 +66,7 @@ type State = Int
 type S a = State -> (a, State)
 
 -- Returns the given state value unchanged
-unitS a = \s0 -> (a, s0)
+unitS a s0 = (a, s0)
 
 -- Takes a state transformer m :: S a
 -- and a function k :: a -> S b
@@ -84,12 +86,15 @@ showS m = let (a,s1) = m 0
 -- Increment the count. Since this returns the empty
 -- tuple, the function is executed for the side-effect only
 tickS :: S ()
-tickS = \s -> ((), s+1)
+tickS s = ((), s+1)
 
 type M a = S a
 unitM = unitS
 bindM = bindS
 showM = showS
+
+fetchS :: S State
+fetchS s = (s,s)
 
 ----------------------
 -- To be used as a test:
@@ -107,7 +112,11 @@ term2 = App
 
 term3 = Con 5
 
-terms = [term0, term1, term2, term3]
+-- Adds the number of reductions to the result
+-- of adding one a few times.  Neat!
+term4 = Add (Add (Add (Con 1) (Con 1)) (Con 1)) Count
+
+terms = [term0, term1, term2, term3, term4]
 
 main = do
         putStrLn "Running tests:"
