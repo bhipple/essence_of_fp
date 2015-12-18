@@ -17,6 +17,7 @@ data Term = Var Name
           | Add Term Term
           | Lam Name Term
           | App Term Term
+          | At Position Term
 
 data Value = Wrong
            | Num Int
@@ -39,19 +40,20 @@ interp (Lam x v) e = unitM (Fun (\a -> interp v ((x,a):e)))
 interp (App t u) e = interp t e `bindM` (\f ->
                      interp u e `bindM` (\a ->
                      apply f a))
+interp (At p t) e = resetP p (interp t e)
 
 lookup :: Name -> Environment -> M Value
-lookup x [] = errorE ("unbound variable: " ++ x)
+lookup x [] = errorP ("unbound variable: " ++ x)
 lookup x ((y,b):e) = if x == y then unitM b else Main.lookup x e
 
 add :: Value -> Value -> M Value
 add (Num i) (Num j) = unitM (Num (i+j))
-add a b = errorE ("should be numbers: " ++ showval a
+add a b = errorP ("should be numbers: " ++ showval a
                   ++ ", " ++ showval b)
 
 apply :: Value -> Value -> M Value
 apply (Fun k) a = k a
-apply f a = errorE ("should be function: " ++ showval f)
+apply f a = errorP ("should be function: " ++ showval f)
 
 test :: Term -> String
 test t = showM (interp t [])
@@ -90,10 +92,44 @@ errorE = Error
 showE (Success a) = "Success: " ++ showval a
 showE (Error s) = "Error: " ++ s
 
-type M a = E a
-unitM = unitE
-bindM = bindE
-showM = showE
+-- type M a = E a
+-- unitM = unitE
+-- bindM = bindE
+-- showM = showE
+
+-------------------------------------
+-- 2) Error messages with positions!
+-- We add "At Position Term" to the Term
+-- algebraic data type above.
+
+-- Monad P works as the error monad does, but also
+-- accepts positions. unitP will discard the position
+-- data (since it's valid),, errorP will add the position
+-- to the error message, and bindP passes the position along
+
+-- The paper doesn't layout how exactly to define the
+-- Position type and how it gets modified as it goes
+-- along. Will have to return to this one to think about it.
+type Position = String
+showpos = show
+pos0 = "Start"
+
+
+type P a = Position -> E a
+unitP a = \p -> unitE a
+errorP s = \p -> errorE (showpos p ++ ": " ++ s)
+m `bindP` k = \p -> m p `bindE` (\x -> k x p)
+showP m = showE (m pos0)
+
+-- Function to change position.
+-- Discards position p and replaces it with q
+resetP :: Position -> P x -> P x
+resetP q m = \p -> m q
+
+type M a = P a
+unitM = unitP
+bindM = bindP
+showM = showP
 
 ----------------------
 -- To be used as a test:
@@ -104,7 +140,16 @@ term0 = App (Lam "x" (Add (Var "x") (Var "x")))
 -- Invalid syntax: Trying to apply integers
 term1 = App (Con 1) (Con 2)
 
+-- ((\x.x + x) 3)
+term2 = App
+            (Lam "x" (Add (Var "x") (Var "x")))
+            (Con 3)
+
+term3 = Con 5
+
+terms = [term0, term1, term2, term3]
+
 main = do
         putStrLn "Running tests:"
-        mapM_ (putStrLn . test) [term0, term1]
+        mapM_ (putStrLn . test) terms
         putStrLn "Done!"
